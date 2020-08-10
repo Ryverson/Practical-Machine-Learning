@@ -1,0 +1,89 @@
+---
+title: "Prediction Assignment Writeup"
+author: ""
+date: "8/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Overview
+
+The object of this assignment is to develop a model that will be able to predict the quality of exercises based on movement data.
+
+### Background Information
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+### Load packages
+
+Load the following packages required for analysis:
+```{r, message=FALSE}
+library(caret)
+library(randomForest)
+library(dplyr)
+
+```
+
+### Import & Clean Data
+
+The data is then cleaned by removing variables that are irrelevant to the analysis.
+
+```{r }
+
+pml_training <- read.csv("pml-training.csv", na.strings=c("NA", "#DIV/0!")) %>%
+  # remove ID variables
+  select(-(1:7)) %>%
+  # remove variables with over 80% missing values
+  select_if(~ mean(is.na(.)) < 0.8)
+
+pml_training$classe <- as.factor(pml_training$classe)
+
+dim(pml_training)
+
+```
+
+We are left with a data set that has 19622 observations of 53 variables.
+
+```{r}
+set.seed(5678)
+inTrain  <- createDataPartition(pml_training$classe, p=0.7, list=FALSE)
+training <- pml_training[inTrain,]
+testing <- pml_training[-inTrain,]
+
+dim(training)
+dim(testing)
+```
+ A training set of 13737 observations will be used to create the model and it will be tested against a data set of 5885 observations.
+ 
+ ### Model Building
+ 
+The prediction model chosen for this analysis is random forest. A random forest model has been chosen because they have the ability to be highly accurate with classification data. The accuracy of this model will be checked against the test subset of the training data to ensure the model is appropriate.
+ 
+```{r}
+modFit <- train(classe ~ ., data=training, method="rf", trControl = trainControl(method = "cv", number = 3, allowParallel = TRUE))
+modFit$finalModel
+```
+
+```{r}
+# prediction on testing data subset
+predict_test <- predict(modFit, newdata=testing)
+model_conf_matrx <- confusionMatrix(predict_test, as.factor(testing$classe))
+model_conf_matrx
+```
+
+With the model that was built, an accuracy of over 99% was achieved on the test subset of the training data.
+
+### Application to Test Data
+
+After accepting the model, it is now applied to the separate pml-testing data.
+
+```{r}
+pml_test <- read.csv("pml-testing.csv", na.strings=c("NA", "#DIV/0!"))
+predict_pml_test <- predict(modFit, newdata=pml_test)
+predict_pml_test
+```
+
